@@ -1,5 +1,7 @@
 package dev.langchain4j.agentic.mcp;
 
+import static dev.langchain4j.agentic.observability.ComposedAgentListener.composeWithInherited;
+
 import dev.langchain4j.agentic.UntypedAgent;
 import dev.langchain4j.agentic.internal.AgentInvoker;
 import dev.langchain4j.agentic.internal.InternalAgent;
@@ -26,8 +28,6 @@ import java.util.List;
 import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import static dev.langchain4j.agentic.observability.ComposedAgentListener.composeWithInherited;
 
 public class DefaultMcpClientBuilder<T> implements McpClientBuilder<T>, InternalAgent, InvocationHandler {
 
@@ -97,7 +97,9 @@ public class DefaultMcpClientBuilder<T> implements McpClientBuilder<T>, Internal
         if (params != null && params.properties() != null) {
             Map<String, String> descriptions = new HashMap<>();
             params.properties().forEach((key, schema) -> {
-                if (schema != null && schema.description() != null && !schema.description().isBlank()) {
+                if (schema != null
+                        && schema.description() != null
+                        && !schema.description().isBlank()) {
                     descriptions.put(key, schema.description());
                 }
             });
@@ -112,9 +114,7 @@ public class DefaultMcpClientBuilder<T> implements McpClientBuilder<T>, Internal
             }
         }
 
-        Object agent = Proxy.newProxyInstance(
-                agentServiceClass.getClassLoader(),
-                new Class<?>[] {agentServiceClass, McpClientInstance.class}, this);
+        Object agent = Proxy.newProxyInstance(agentServiceClass.getClassLoader(), new Class<?>[] {agentServiceClass, McpClientInstance.class}, this);
 
         return (T) agent;
     }
