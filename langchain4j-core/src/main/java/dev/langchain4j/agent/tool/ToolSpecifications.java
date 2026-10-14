@@ -1,10 +1,12 @@
 package dev.langchain4j.agent.tool;
 
+import static dev.langchain4j.agent.tool.SearchBehavior.SEARCHABLE;
+import static dev.langchain4j.agent.tool.ToolSpecification.METADATA_SEARCH_BEHAVIOR;
 import static dev.langchain4j.internal.Utils.allConcreteMethods;
 import static dev.langchain4j.internal.Utils.getAnnotatedMethod;
 import static dev.langchain4j.internal.Utils.isNotNullOrBlank;
 import static dev.langchain4j.internal.Utils.isNullOrBlank;
-import static java.util.Arrays.stream;
+import static java.util.Comparator.comparing;
 import static java.util.stream.Collectors.toList;
 
 import dev.langchain4j.internal.Json;
@@ -30,9 +32,6 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import static dev.langchain4j.agent.tool.SearchBehavior.SEARCHABLE;
-import static dev.langchain4j.agent.tool.ToolSpecification.METADATA_SEARCH_BEHAVIOR;
 
 /**
  * Utility methods for {@link ToolSpecification}s.
@@ -75,6 +74,7 @@ public class ToolSpecifications {
 
     /**
      * Returns {@link ToolSpecification}s for all methods annotated with @{@link Tool} within the specified class.
+     * The specifications are sorted lexicographically by their exposed tool names.
      *
      * @param classWithTools the class.
      * @return the {@link ToolSpecification}s.
@@ -84,6 +84,7 @@ public class ToolSpecifications {
                 .map(method -> getAnnotatedMethod(method, Tool.class))
                 .flatMap(Optional::stream)
                 .map(ToolSpecifications::toolSpecificationFrom)
+                .sorted(comparing(ToolSpecification::name))
                 .collect(toList());
         validateSpecifications(toolSpecifications);
         return toolSpecifications;
@@ -92,6 +93,7 @@ public class ToolSpecifications {
     /**
      * Returns {@link ToolSpecification}s for all methods annotated with @{@link Tool}
      * within the class of the specified object.
+     * The specifications are sorted lexicographically by their exposed tool names.
      *
      * @param objectWithTools the object.
      * @return the {@link ToolSpecification}s.
@@ -190,13 +192,10 @@ public class ToolSpecifications {
 
             boolean isOptional = Optional.class.equals(parameter.getType());
             P pAnnotation = parameter.getAnnotation(P.class);
-            boolean hasDefaultValue =
-                    pAnnotation != null && !P.NO_DEFAULT.equals(pAnnotation.defaultValue());
+            boolean hasDefaultValue = pAnnotation != null && !P.NO_DEFAULT.equals(pAnnotation.defaultValue());
             boolean isRequired = !isOptional
                     && !hasDefaultValue
-                    && Optional.ofNullable(pAnnotation)
-                            .map(P::required)
-                            .orElse(true);
+                    && Optional.ofNullable(pAnnotation).map(P::required).orElse(true);
 
             String parameterName = Optional.ofNullable(pAnnotation)
                     .map(P::name)

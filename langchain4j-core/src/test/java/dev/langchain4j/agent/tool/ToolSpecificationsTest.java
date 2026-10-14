@@ -163,6 +163,54 @@ class ToolSpecificationsTest implements WithAssertions {
         assertThat(specs).extracting(ToolSpecification::name).containsExactlyInAnyOrder("f", "func_name");
     }
 
+    public interface NamedTool {
+        @Tool(name = "middle")
+        String fromInterface();
+    }
+
+    public static class ParentTools {
+        @Tool(name = "beta")
+        public String fromParent() {
+            return "parent";
+        }
+    }
+
+    public static class OrderedTools extends ParentTools implements NamedTool {
+        @Tool(name = "zeta")
+        public String first() {
+            return "first";
+        }
+
+        @Tool(name = "alpha")
+        public String last() {
+            return "last";
+        }
+
+        @Override
+        public String fromInterface() {
+            return "interface";
+        }
+
+        @Override
+        public String fromParent() {
+            return "override";
+        }
+    }
+
+    @Test
+    void tool_specifications_from_class_are_sorted_by_exposed_name() {
+        assertThat(ToolSpecifications.toolSpecificationsFrom(OrderedTools.class))
+                .extracting(ToolSpecification::name)
+                .containsExactly("alpha", "beta", "middle", "zeta");
+    }
+
+    @Test
+    void tool_specifications_from_object_are_sorted_by_exposed_name() {
+        assertThat(ToolSpecifications.toolSpecificationsFrom(new OrderedTools()))
+                .extracting(ToolSpecification::name)
+                .containsExactly("alpha", "beta", "middle", "zeta");
+    }
+
     @Test
     void tool_specifications_from_with_duplicate_method_names() {
         assertThatExceptionOfType(IllegalArgumentException.class)
@@ -488,7 +536,10 @@ class ToolSpecificationsTest implements WithAssertions {
         ToolSpecification ts = ToolSpecifications.toolSpecificationFrom(method);
 
         JsonSchemaElement element = ts.parameters().properties().get("arg0");
-        assertThat(element).isEqualTo(JsonStringSchema.builder().description("desc via description").build());
+        assertThat(element)
+                .isEqualTo(JsonStringSchema.builder()
+                        .description("desc via description")
+                        .build());
     }
 
     @Test
@@ -501,7 +552,9 @@ class ToolSpecificationsTest implements WithAssertions {
         ToolSpecification ts = ToolSpecifications.toolSpecificationFrom(method);
 
         JsonSchemaElement element = ts.parameters().properties().get("arg0");
-        assertThat(element).isEqualTo(JsonStringSchema.builder().description("desc via value").build());
+        assertThat(element)
+                .isEqualTo(
+                        JsonStringSchema.builder().description("desc via value").build());
     }
 
     @Test
@@ -514,7 +567,8 @@ class ToolSpecificationsTest implements WithAssertions {
         ToolSpecification ts = ToolSpecifications.toolSpecificationFrom(method);
 
         assertThat(ts.parameters().properties()).containsKey("myParam");
-        JsonStringSchema element = (JsonStringSchema) ts.parameters().properties().get("myParam");
+        JsonStringSchema element =
+                (JsonStringSchema) ts.parameters().properties().get("myParam");
         assertThat(element.description()).isNull();
     }
 
@@ -541,9 +595,9 @@ class ToolSpecificationsTest implements WithAssertions {
         List<ToolSpecification> specs = ToolSpecifications.toolSpecificationsFrom(new ChildTool());
 
         assertThat(specs).hasSize(2);
-        assertThat(specs).extracting(ToolSpecification::name)
-                .containsExactlyInAnyOrder("childMethod", "parentMethod");
-        assertThat(specs).extracting(ToolSpecification::description)
+        assertThat(specs).extracting(ToolSpecification::name).containsExactlyInAnyOrder("childMethod", "parentMethod");
+        assertThat(specs)
+                .extracting(ToolSpecification::description)
                 .containsExactlyInAnyOrder("child tool", "parent tool");
     }
 
@@ -607,7 +661,8 @@ class ToolSpecificationsTest implements WithAssertions {
 
     @Test
     void should_use_updated_tool_annotation_from_overriding_child() {
-        List<ToolSpecification> specs = ToolSpecifications.toolSpecificationsFrom(new ChildOverridingToolWithNewAnnotation());
+        List<ToolSpecification> specs =
+                ToolSpecifications.toolSpecificationsFrom(new ChildOverridingToolWithNewAnnotation());
 
         assertThat(specs).hasSize(1);
         assertThat(specs.get(0).name()).isEqualTo("renamed_compute");
@@ -692,12 +747,13 @@ class ToolSpecificationsTest implements WithAssertions {
 
     @Test
     void should_discover_both_when_overloaded_methods_in_parent_and_child_have_different_tool_names() {
-        List<ToolSpecification> specs = ToolSpecifications.toolSpecificationsFrom(new ChildWithOverloadedDifferentToolNames());
+        List<ToolSpecification> specs =
+                ToolSpecifications.toolSpecificationsFrom(new ChildWithOverloadedDifferentToolNames());
 
         assertThat(specs).hasSize(2);
-        assertThat(specs).extracting(ToolSpecification::name)
-                .containsExactlyInAnyOrder("process", "process_int");
-        assertThat(specs).extracting(ToolSpecification::description)
+        assertThat(specs).extracting(ToolSpecification::name).containsExactlyInAnyOrder("process", "process_int");
+        assertThat(specs)
+                .extracting(ToolSpecification::description)
                 .containsExactlyInAnyOrder("process a string", "process an int");
     }
 
@@ -711,8 +767,7 @@ class ToolSpecificationsTest implements WithAssertions {
     }
 
     @SuppressWarnings("unused")
-    public static class ImplementsToolInterface implements ToolInterface {
-    }
+    public static class ImplementsToolInterface implements ToolInterface {}
 
     @Test
     void should_discover_tool_from_interface_default_method() {
@@ -736,9 +791,11 @@ class ToolSpecificationsTest implements WithAssertions {
         List<ToolSpecification> specs = ToolSpecifications.toolSpecificationsFrom(new ClassWithOwnToolAndInterface());
 
         assertThat(specs).hasSize(2);
-        assertThat(specs).extracting(ToolSpecification::name)
+        assertThat(specs)
+                .extracting(ToolSpecification::name)
                 .containsExactlyInAnyOrder("classMethod", "interfaceMethod");
-        assertThat(specs).extracting(ToolSpecification::description)
+        assertThat(specs)
+                .extracting(ToolSpecification::description)
                 .containsExactlyInAnyOrder("class tool", "interface tool");
     }
 
@@ -753,7 +810,8 @@ class ToolSpecificationsTest implements WithAssertions {
 
     @Test
     void should_use_class_method_when_overriding_interface_default() {
-        List<ToolSpecification> specs = ToolSpecifications.toolSpecificationsFrom(new ClassOverridingInterfaceDefault());
+        List<ToolSpecification> specs =
+                ToolSpecifications.toolSpecificationsFrom(new ClassOverridingInterfaceDefault());
 
         assertThat(specs).hasSize(1);
         assertThat(specs.get(0).name()).isEqualTo("interfaceMethod");
@@ -818,12 +876,15 @@ class ToolSpecificationsTest implements WithAssertions {
 
     @Test
     void should_discover_static_tool_from_interface() {
-        List<ToolSpecification> specs = ToolSpecifications.toolSpecificationsFrom(new ImplementsInterfaceWithStaticTool());
+        List<ToolSpecification> specs =
+                ToolSpecifications.toolSpecificationsFrom(new ImplementsInterfaceWithStaticTool());
 
         assertThat(specs).hasSize(2);
-        assertThat(specs).extracting(ToolSpecification::name)
+        assertThat(specs)
+                .extracting(ToolSpecification::name)
                 .containsExactlyInAnyOrder("staticMethod", "instanceMethod");
-        assertThat(specs).extracting(ToolSpecification::description)
+        assertThat(specs)
+                .extracting(ToolSpecification::description)
                 .containsExactlyInAnyOrder("static tool", "instance tool");
     }
 
@@ -864,18 +925,22 @@ class ToolSpecificationsTest implements WithAssertions {
 
     @Test
     void should_not_warn_when_parameter_name_is_available() {
-        Parameter parameter = RecordWithNamedParameters.class.getDeclaredConstructors()[0].getParameters()[0];
+        Parameter parameter =
+                RecordWithNamedParameters.class.getDeclaredConstructors()[0].getParameters()[0];
         assertThat(parameter.isNamePresent()).isTrue();
 
-        assertThat(ToolSpecifications.unavailableParameterNameWarning(parameter)).isNull();
+        assertThat(ToolSpecifications.unavailableParameterNameWarning(parameter))
+                .isNull();
     }
 
     @Test
     void should_warn_only_once_per_declaring_class() throws NoSuchMethodException {
         Parameter parameter = firstParameterOf(MoreUnnamedParameters.class, String.class);
 
-        assertThat(ToolSpecifications.unavailableParameterNameWarning(parameter)).isNotNull();
-        assertThat(ToolSpecifications.unavailableParameterNameWarning(parameter)).isNull();
+        assertThat(ToolSpecifications.unavailableParameterNameWarning(parameter))
+                .isNotNull();
+        assertThat(ToolSpecifications.unavailableParameterNameWarning(parameter))
+                .isNull();
     }
 
     @SuppressWarnings("unused")

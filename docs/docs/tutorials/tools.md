@@ -192,6 +192,12 @@ class WeatherTools {
 List<ToolSpecification> toolSpecifications = ToolSpecifications.toolSpecificationsFrom(WeatherTools.class);
 ```
 
+Tools discovered from a class or object are sorted lexicographically by their exposed names
+(`@Tool(name = "...")`, or the Java method name when no custom name is set).
+The same ordering applies within each tool object registered with `AiServices.tools(Object...)`.
+The registration order between separate tool objects, explicit tool lists, ordered maps and tool-provider output
+remains under the caller's control. This avoids reflection-dependent tool ordering without reordering explicit registrations.
+
 ### JSON Serialization
 
 `ToolSpecification` can be serialized to JSON and deserialized back using `toJson()` and `fromJson()` methods.

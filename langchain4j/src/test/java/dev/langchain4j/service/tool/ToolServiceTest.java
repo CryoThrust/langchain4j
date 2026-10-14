@@ -5,6 +5,7 @@ import static dev.langchain4j.service.tool.ToolService.refreshDynamicProviders;
 import static dev.langchain4j.service.tool.ToolService.shouldReturnImmediately;
 import static org.assertj.core.api.Assertions.*;
 
+import dev.langchain4j.agent.tool.ReturnBehavior;
 import dev.langchain4j.agent.tool.Tool;
 import dev.langchain4j.agent.tool.ToolExecutionRequest;
 import dev.langchain4j.agent.tool.ToolSpecification;
@@ -16,7 +17,9 @@ import dev.langchain4j.exception.ToolExecutionException;
 import dev.langchain4j.invocation.InvocationContext;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import org.junit.jupiter.api.Test;
@@ -79,12 +82,127 @@ class ToolServiceTest {
     void findTools_should_execute_tool_through_overriding_method() {
         InterceptedDateTool objectWithTools = new InterceptedDateTool();
 
-        ToolExecutor toolExecutor = ToolService.findTools(objectWithTools).get(0).toolExecutor();
+        ToolExecutor toolExecutor =
+                ToolService.findTools(objectWithTools).get(0).toolExecutor();
         String result = toolExecutor.execute(
-                ToolExecutionRequest.builder().name("getCurrentDate").arguments("{}").build(), null);
+                ToolExecutionRequest.builder()
+                        .name("getCurrentDate")
+                        .arguments("{}")
+                        .build(),
+                null);
 
         assertThat(result).isEqualTo("2024-04-29");
         assertThat(objectWithTools.intercepted).isTrue();
+    }
+
+    public interface NamedTool {
+        @Tool(name = "middle")
+        String fromInterface();
+    }
+
+    public static class ParentTools {
+        @Tool(name = "beta")
+        public String fromParent() {
+            return "parent";
+        }
+    }
+
+    public static class OrderedTools extends ParentTools implements NamedTool {
+        @Tool(name = "zeta", returnBehavior = ReturnBehavior.IMMEDIATE)
+        public String first() {
+            return "first";
+        }
+
+        @Tool(name = "alpha")
+        public String last() {
+            return "last";
+        }
+
+        @Override
+        public String fromInterface() {
+            return "interface";
+        }
+
+        @Override
+        public String fromParent() {
+            return "override";
+        }
+    }
+
+    @Test
+    void findTools_should_sort_by_exposed_name_and_preserve_executor_and_return_behavior() {
+        List<AiServiceTool> tools = ToolService.findTools(new OrderedTools());
+
+        assertThat(tools).extracting(AiServiceTool::name).containsExactly("alpha", "beta", "middle", "zeta");
+        assertThat(tools)
+                .extracting(AiServiceTool::returnBehavior)
+                .containsExactly(
+                        ReturnBehavior.TO_LLM, ReturnBehavior.TO_LLM, ReturnBehavior.TO_LLM, ReturnBehavior.IMMEDIATE);
+        assertThat(tools)
+                .extracting(tool -> tool.toolExecutor()
+                        .execute(
+                                ToolExecutionRequest.builder()
+                                        .name(tool.name())
+                                        .arguments("{}")
+                                        .build(),
+                                null))
+                .containsExactly("last", "override", "interface", "first");
+    }
+
+    @Test
+    void tools_should_preserve_registration_order_between_objects() {
+        ToolService service = new ToolService();
+        service.tools(List.<Object>of(new DateTool(), new OrderedTools()));
+
+        assertThat(service.toolSpecifications())
+                .extracting(ToolSpecification::name)
+                .containsExactly("getCurrentDate", "alpha", "beta", "middle", "zeta");
+    }
+
+    private static AiServiceTool explicitTool(String name) {
+        return AiServiceTool.builder()
+                .toolSpecification(ToolSpecification.builder().name(name).build())
+                .toolExecutor((request, memoryId) -> name)
+                .build();
+    }
+
+    @Test
+    void tools_should_preserve_explicit_list_order() {
+        ToolService service = new ToolService();
+        List<AiServiceTool> tools = List.of(explicitTool("zeta"), explicitTool("alpha"));
+        service.tools(tools);
+
+        assertThat(service.toolSpecifications())
+                .extracting(ToolSpecification::name)
+                .containsExactly("zeta", "alpha");
+    }
+
+    @Test
+    void tools_should_preserve_explicit_map_order() {
+        ToolService service = new ToolService();
+        Map<ToolSpecification, ToolExecutor> tools = new LinkedHashMap<>();
+        for (AiServiceTool tool : List.of(explicitTool("zeta"), explicitTool("alpha"))) {
+            tools.put(tool.toolSpecification(), tool.toolExecutor());
+        }
+        service.tools(tools);
+
+        assertThat(service.toolSpecifications())
+                .extracting(ToolSpecification::name)
+                .containsExactly("zeta", "alpha");
+    }
+
+    @Test
+    void tools_should_preserve_provider_order() {
+        ToolService service = new ToolService();
+        service.toolProvider(request -> ToolProviderResult.builder()
+                .add(explicitTool("zeta"))
+                .add(explicitTool("alpha"))
+                .build());
+        UserMessage message = UserMessage.from("hello");
+
+        ToolServiceContext context = service.createContext(DUMMY_CONTEXT, message, List.of(message));
+
+        assertThat(context.effectiveTools()).extracting(ToolSpecification::name).containsExactly("zeta", "alpha");
     }
 
     // --- error handler returns text ---
