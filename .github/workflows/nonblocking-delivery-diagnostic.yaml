@@ -1,0 +1,60 @@
+name: Nonblocking delivery diagnostic
+
+on:
+  push:
+    branches: [diagnose/nonblocking-delivery]
+
+permissions:
+  contents: read
+
+jobs:
+  compare:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - label: main
+            revision: 886c258b91090d41c941e69ab58edf6aa020a9c9
+          - label: prompt-time
+            revision: d5addd6220876ac820ab3e07098ff5044d8eb13f
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          path: harness
+          persist-credentials: false
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ matrix.revision }}
+          path: source
+          persist-credentials: false
+      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961
+        with:
+          java-version: '17'
+          distribution: temurin
+          cache: maven
+          cache-dependency-path: source/**/pom.xml
+      - name: Apply identical diagnostic instrumentation
+        working-directory: source
+        run: |
+          git rev-parse HEAD
+          git apply --check ../harness/.github/nonblocking-delivery.patch
+          git apply ../harness/.github/nonblocking-delivery.patch
+          git diff --check
+      - name: Test main module and dependencies
+        working-directory: source
+        env:
+          JAVA_TOOL_OPTIONS: -Dsun.net.client.defaultConnectTimeout=15000 -Dsun.net.client.defaultReadTimeout=15000
+        run: |
+          set -o pipefail
+          mvn -B -U -DembeddingsSkipDownload -T8C -pl langchain4j -am test 2>&1 | tee diagnostic.log
+      - name: Retain complete logs and test reports
+        if: always()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
+        with:
+          name: nonblocking-${{ matrix.label }}
+          retention-days: 7
+          path: |
+            source/diagnostic.log
+            source/**/target/surefire-reports/

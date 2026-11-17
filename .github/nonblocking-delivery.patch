@@ -1,0 +1,29 @@
+diff --git a/langchain4j/src/test/java/dev/langchain4j/service/AiServicesNonBlockingTest.java b/langchain4j/src/test/java/dev/langchain4j/service/AiServicesNonBlockingTest.java
+index fb54d1cca..b656b72b8 100644
+--- a/langchain4j/src/test/java/dev/langchain4j/service/AiServicesNonBlockingTest.java
++++ b/langchain4j/src/test/java/dev/langchain4j/service/AiServicesNonBlockingTest.java
+@@ -55,6 +55,7 @@ import java.util.concurrent.atomic.AtomicReference;
+ import org.junit.jupiter.api.AfterAll;
+ import org.junit.jupiter.api.BeforeAll;
+ import org.junit.jupiter.api.BeforeEach;
++import org.junit.jupiter.api.RepeatedTest;
+ import org.junit.jupiter.api.Test;
+ import org.junit.jupiter.api.parallel.Execution;
+ import org.junit.jupiter.api.parallel.ExecutionMode;
+@@ -428,7 +429,7 @@ class AiServicesNonBlockingTest {
+         }
+     }
+ 
+-    @Test
++    @RepeatedTest(100)
+     void async_tool_does_not_block_the_delivery_thread() throws Exception {
+ 
+         NonBlockingChatModelStub chatModel = new NonBlockingChatModelStub(
+@@ -1552,6 +1553,7 @@ class AiServicesNonBlockingTest {
+     }
+ 
+     private static void assertNoBlockingCalls() {
++        violations.forEach(Throwable::printStackTrace);
+         assertThat(violations)
+                 .as("BlockHound detected blocking calls on the model-response delivery thread "
+                         + "- see stack trace(s) below")
